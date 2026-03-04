@@ -10,13 +10,14 @@ const os = require('os');
 dotenv.config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-// Setup multer for file uploads - using OS temp dir for Vercel compatibility
-const upload = multer({ dest: os.tmpdir() });
+// Setup multer for file uploads - use local uploads folder for Render
+const upload = multer({ dest: 'uploads/' });
 
 app.use(express.static('public'));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const fileManager = new GoogleAIFileManager(process.env.GEMINI_API_KEY);
@@ -108,11 +109,6 @@ app.post('/generate-report', upload.single('material'), async (req, res) => {
     }
 });
 
-// Export the app for Vercel Serverless Functions
-module.exports = app;
-
-if (process.env.NODE_ENV !== 'production') {
-    app.listen(port, () => {
-        console.log(`Server is running on http://localhost:${port}`);
-    });
-}
+app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+});
