@@ -5,14 +5,15 @@ const { GoogleAIFileManager } = require('@google/generative-ai/server');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 dotenv.config();
 
 const app = express();
 const port = 3000;
 
-// Setup multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+// Setup multer for file uploads - using OS temp dir for Vercel compatibility
+const upload = multer({ dest: os.tmpdir() });
 
 app.use(express.static('public'));
 app.use(express.json());
@@ -107,6 +108,11 @@ app.post('/generate-report', upload.single('material'), async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+// Export the app for Vercel Serverless Functions
+module.exports = app;
+
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(port, () => {
+        console.log(`Server is running on http://localhost:${port}`);
+    });
+}
