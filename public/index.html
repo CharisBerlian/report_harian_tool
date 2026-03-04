@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Report Generator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="background-mesh">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
+    <div class="container glass-panel">
+        <header>
+            <h1>Daily Report Generator</h1>
+            <p>Unggah materi pelajaran Anda dan biarkan AI menyusun laporan harian yang profesional.</p>
+        </header>
+
+        <main>
+            <form id="report-form">
+                <div class="form-group">
+                    <label>Materi Pelajaran (File)</label>
+                    <div class="file-drop-zone" id="drop-zone">
+                        <div class="icon">📄</div>
+                        <p>Drag & Drop file di sini, atau <span>klik untuk memilih</span></p>
+                        <small>Format pendukung: PDF, Gambar (JPG, PNG), dan Teks.</small>
+                        <input type="file" id="file-input" name="material" accept=".pdf,image/*,.txt,.md,.doc,.docx" hidden>
+                    </div>
+                    <div id="file-preview" class="hidden">
+                        <span id="file-name"></span>
+                        <button type="button" id="remove-file" class="btn-text">Hapus File</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="text-input">Tambahan Konteks (Opsional)</label>
+                    <textarea id="text-input" name="textInput" rows="4" placeholder="Ketik tambahan materi atau instruksi spesifik di sini..."></textarea>
+                </div>
+
+                <button type="submit" id="generate-btn" class="btn-primary">
+                    <span class="btn-text">Generate Laporan</span>
+                    <span class="loader hidden"></span>
+                </button>
+            </form>
+
+            <div id="result-container" class="hidden">
+                <div class="result-header">
+                    <h2>Hasil Daily Report</h2>
+                    <button class="btn-icon" id="copy-btn" title="Salin ke Clipboard">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                </div>
+                <div id="report-content" class="markdown-body"></div>
+            </div>
+            
+            <div id="error-message" class="error-msg hidden"></div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
