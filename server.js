@@ -60,7 +60,7 @@ app.post('/generate-report', upload.single('material'), async (req, res) => {
         let uploadedFileResponse = null;
 
         if (file) {
-            const filePath = path.join(__dirname, file.path);
+            const filePath = file.path;
             const mimeType = file.mimetype;
 
             // Upload the file to Gemini
