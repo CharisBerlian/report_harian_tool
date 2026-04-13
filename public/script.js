@@ -2,7 +2,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const filePreview = document.getElementById('file-preview');
-    const fileNameDisplay = document.getElementById('file-name');
+    const fileSummary = document.getElementById('file-summary');
+    const fileList = document.getElementById('file-list');
     const removeFileBtn = document.getElementById('remove-file');
     const pasteClipboardBtn = document.getElementById('paste-clipboard-btn');
 
@@ -16,7 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyBtn = document.getElementById('copy-btn');
     const errorMsg = document.getElementById('error-message');
 
-    let currentFile = null;
+    const MAX_TOTAL_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024;
+    const MAX_FILE_COUNT = 6;
     const clipboardMimeMap = {
         'application/pdf': '.pdf',
         'image/png': '.png',
@@ -27,7 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'image/bmp': '.bmp'
     };
 
-    // --- Drag and Drop Logic ---
+    let currentFiles = [];
+
     dropZone.addEventListener('click', () => fileInput.click());
 
     dropZone.addEventListener('dragover', (e) => {
@@ -44,121 +47,65 @@ document.addEventListener('DOMContentLoaded', () => {
         dropZone.classList.remove('dragover');
 
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFile(e.dataTransfer.files[0]);
+            addFiles(Array.from(e.dataTransfer.files));
         }
     });
 
     fileInput.addEventListener('change', (e) => {
         if (e.target.files && e.target.files.length > 0) {
-            handleFile(e.target.files[0]);
+            addFiles(Array.from(e.target.files));
+            fileInput.value = '';
         }
     });
 
-    document.addEventListener('paste', async (e) => {
-        const clipboardFile = getPastedClipboardFile(e);
-        if (!clipboardFile) {
+    document.addEventListener('paste', (e) => {
+        const clipboardFiles = getPastedClipboardFiles(e);
+        if (clipboardFiles.length === 0) {
             return;
         }
 
         e.preventDefault();
         hideError();
-        handleFile(clipboardFile);
+        addFiles(clipboardFiles);
     });
 
     pasteClipboardBtn.addEventListener('click', async () => {
         hideError();
 
         try {
-            const clipboardFile = await readClipboardFile();
-            handleFile(clipboardFile);
+            const clipboardFiles = await readClipboardFiles();
+            addFiles(clipboardFiles);
         } catch (error) {
             showError(error.message);
         }
     });
 
-    function handleFile(file) {
-        currentFile = file;
-        fileNameDisplay.textContent = file.name;
-        dropZone.classList.add('hidden');
-        filePreview.classList.remove('hidden');
-    }
-
-    function getPastedClipboardFile(event) {
-        const items = Array.from(event.clipboardData?.items || []);
-        const fileItem = items.find((item) => item.kind === 'file' && isClipboardSupportedType(item.type));
-
-        if (!fileItem) {
-            return null;
-        }
-
-        const file = fileItem.getAsFile();
-        return file ? normalizeClipboardFile(file) : null;
-    }
-
-    async function readClipboardFile() {
-        if (!navigator.clipboard?.read) {
-            throw new Error('Browser ini belum mendukung baca file dari clipboard. Gunakan Ctrl+V di area halaman ini.');
-        }
-
-        const clipboardItems = await navigator.clipboard.read();
-
-        for (const item of clipboardItems) {
-            const supportedType = item.types.find((type) => isClipboardSupportedType(type));
-            if (!supportedType) {
-                continue;
-            }
-
-            const blob = await item.getType(supportedType);
-            return normalizeClipboardFile(blob);
-        }
-
-        throw new Error('Clipboard tidak berisi gambar atau PDF.');
-    }
-
-    function isClipboardSupportedType(type) {
-        return Boolean(clipboardMimeMap[type]);
-    }
-
-    function normalizeClipboardFile(blobOrFile) {
-        const mimeType = blobOrFile.type || 'application/octet-stream';
-        const existingName = typeof blobOrFile.name === 'string' ? blobOrFile.name.trim() : '';
-        const extension = clipboardMimeMap[mimeType] || '';
-        const fallbackName = `clipboard-${Date.now()}${extension}`;
-
-        return new File([blobOrFile], existingName || fallbackName, {
-            type: mimeType,
-            lastModified: Date.now()
-        });
-    }
-
     removeFileBtn.addEventListener('click', () => {
-        currentFile = null;
+        currentFiles = [];
         fileInput.value = '';
-        dropZone.classList.remove('hidden');
-        filePreview.classList.add('hidden');
+        renderSelectedFiles();
     });
 
-    // --- Form Submission Logic ---
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const textInput = document.getElementById('text-input').value;
 
-        if (!currentFile && !textInput.trim()) {
-            showError("Silakan unggah file materi atau ketik tambahan konteks.");
+        if (currentFiles.length === 0 && !textInput.trim()) {
+            showError('Silakan unggah file materi atau ketik tambahan konteks.');
             return;
         }
 
-        // UI Loading State
         setLoading(true);
         hideError();
         resultContainer.classList.add('hidden');
 
         try {
             const formData = new FormData();
-            if (currentFile) {
-                formData.append('material', currentFile);
+            for (const file of currentFiles) {
+                formData.append('material', file);
             }
+
             if (textInput.trim()) {
                 formData.append('textInput', textInput);
             }
@@ -174,13 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(data.error || 'Terjadi kesalahan saat memproses laporan.');
             }
 
-            // Render Markdown
             reportContent.innerHTML = marked.parse(data.report);
             resultContainer.classList.remove('hidden');
-
-            // Scroll to result
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
         } catch (error) {
             showError(error.message);
         } finally {
@@ -188,23 +131,167 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Copy to Clipboard ---
     copyBtn.addEventListener('click', () => {
         const textToCopy = reportContent.innerText || reportContent.textContent;
         navigator.clipboard.writeText(textToCopy).then(() => {
             const originalIcon = copyBtn.innerHTML;
-            // Show checkmark icon
             copyBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
             setTimeout(() => {
                 copyBtn.innerHTML = originalIcon;
             }, 2000);
-        }).catch(err => {
+        }).catch((err) => {
             console.error('Failed to copy text: ', err);
             showError('Gagal menyalin teks ke clipboard.');
         });
     });
 
-    // --- Helpers ---
+    function addFiles(files) {
+        const normalizedFiles = files
+            .filter(Boolean)
+            .map((file) => normalizeClipboardFile(file))
+            .filter((file) => file.size > 0);
+
+        if (normalizedFiles.length === 0) {
+            showError('Tidak ada file yang bisa ditambahkan dari clipboard.');
+            return;
+        }
+
+        const nextFiles = [...currentFiles];
+
+        for (const file of normalizedFiles) {
+            if (nextFiles.length >= MAX_FILE_COUNT) {
+                showError(`Maksimal ${MAX_FILE_COUNT} file per laporan.`);
+                break;
+            }
+
+            if (isDuplicateFile(file, nextFiles)) {
+                continue;
+            }
+
+            nextFiles.push(file);
+        }
+
+        const totalBytes = getTotalFileSize(nextFiles);
+        if (totalBytes > MAX_TOTAL_UPLOAD_SIZE_BYTES) {
+            showError('Total ukuran file melebihi 4 MB. Kurangi jumlah atau ukuran gambar.');
+            return;
+        }
+
+        currentFiles = nextFiles;
+        renderSelectedFiles();
+    }
+
+    function renderSelectedFiles() {
+        if (currentFiles.length === 0) {
+            fileList.innerHTML = '';
+            dropZone.classList.remove('hidden');
+            filePreview.classList.add('hidden');
+            return;
+        }
+
+        const totalSizeLabel = formatFileSize(getTotalFileSize(currentFiles));
+        fileSummary.textContent = `${currentFiles.length} file dipilih (${totalSizeLabel})`;
+        fileList.innerHTML = currentFiles
+            .map((file) => `<li>${escapeHtml(file.name)} <span>(${formatFileSize(file.size)})</span></li>`)
+            .join('');
+
+        dropZone.classList.add('hidden');
+        filePreview.classList.remove('hidden');
+    }
+
+    function getPastedClipboardFiles(event) {
+        const items = Array.from(event.clipboardData?.items || []);
+
+        return items
+            .filter((item) => item.kind === 'file' && isClipboardSupportedType(item.type))
+            .map((item) => item.getAsFile())
+            .filter(Boolean)
+            .map((file) => normalizeClipboardFile(file));
+    }
+
+    async function readClipboardFiles() {
+        if (!navigator.clipboard?.read) {
+            throw new Error('Browser ini belum mendukung baca file dari clipboard. Gunakan Ctrl+V di area halaman ini.');
+        }
+
+        const clipboardItems = await navigator.clipboard.read();
+        const files = [];
+
+        for (const item of clipboardItems) {
+            const supportedTypes = item.types.filter((type) => isClipboardSupportedType(type));
+            if (supportedTypes.length === 0) {
+                continue;
+            }
+
+            const preferredType = pickPreferredClipboardType(supportedTypes);
+            const blob = await item.getType(preferredType);
+            files.push(normalizeClipboardFile(blob));
+        }
+
+        if (files.length === 0) {
+            throw new Error('Clipboard tidak berisi gambar atau PDF yang didukung.');
+        }
+
+        return files;
+    }
+
+    function pickPreferredClipboardType(types) {
+        return types.find((type) => type.startsWith('image/')) || types[0];
+    }
+
+    function isClipboardSupportedType(type) {
+        return Boolean(clipboardMimeMap[type]);
+    }
+
+    function normalizeClipboardFile(blobOrFile) {
+        const mimeType = blobOrFile.type || 'application/octet-stream';
+        const existingName = typeof blobOrFile.name === 'string' ? blobOrFile.name.trim() : '';
+        const extension = clipboardMimeMap[mimeType] || '';
+        const fallbackName = `clipboard-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${extension}`;
+
+        if (blobOrFile instanceof File && existingName) {
+            return blobOrFile;
+        }
+
+        return new File([blobOrFile], existingName || fallbackName, {
+            type: mimeType,
+            lastModified: Date.now()
+        });
+    }
+
+    function isDuplicateFile(candidate, files) {
+        return files.some((file) =>
+            file.name === candidate.name &&
+            file.size === candidate.size &&
+            file.lastModified === candidate.lastModified
+        );
+    }
+
+    function getTotalFileSize(files) {
+        return files.reduce((total, file) => total + file.size, 0);
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) {
+            return `${bytes} B`;
+        }
+
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)} KB`;
+        }
+
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
+
+    function escapeHtml(value) {
+        return value
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
+
     function setLoading(isLoading) {
         generateBtn.disabled = isLoading;
         if (isLoading) {
@@ -219,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showError(message) {
         errorMsg.textContent = message;
         errorMsg.classList.remove('hidden');
-        // Auto hide after 5s
         setTimeout(hideError, 5000);
     }
 

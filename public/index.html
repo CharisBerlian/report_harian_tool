@@ -29,15 +29,18 @@
                         <div class="icon">📄</div>
                         <p>Drag & Drop file di sini, atau <span>klik untuk memilih</span></p>
                         <small>Format pendukung: PDF, Gambar (JPG, PNG), dan Teks.</small>
-                        <input type="file" id="file-input" name="material" accept=".pdf,image/*,.txt,.md,.doc,.docx" hidden>
+                        <input type="file" id="file-input" name="material" accept=".pdf,image/*,.txt,.md,.doc,.docx" multiple hidden>
                     </div>
                     <div class="upload-actions">
                         <button type="button" id="paste-clipboard-btn" class="btn-secondary">Tempel dari Clipboard</button>
-                        <small class="helper-text">Bisa tempel gambar atau PDF langsung dengan Ctrl+V / Cmd+V.</small>
+                        <small class="helper-text">Bisa tempel beberapa gambar sekaligus dengan Ctrl+V / Cmd+V.</small>
                     </div>
                     <div id="file-preview" class="hidden">
-                        <span id="file-name"></span>
-                        <button type="button" id="remove-file" class="btn-text">Hapus File</button>
+                        <div class="file-preview-header">
+                            <span id="file-summary"></span>
+                            <button type="button" id="remove-file" class="btn-text">Hapus Semua</button>
+                        </div>
+                        <ul id="file-list" class="file-list"></ul>
                     </div>
                 </div>
 

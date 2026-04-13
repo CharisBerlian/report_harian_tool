@@ -162,9 +162,30 @@ header p {
     background: rgba(255,255,255,0.05);
     border-radius: 8px;
     border: 1px solid var(--glass-border);
+}
+
+.file-preview-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
+}
+
+.file-list {
+    list-style: none;
+    margin-top: 0.9rem;
+    display: grid;
+    gap: 0.55rem;
+}
+
+.file-list li {
+    padding: 0.7rem 0.9rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+    word-break: break-word;
 }
 
 .upload-actions {
@@ -200,6 +221,13 @@ header p {
 .helper-text {
     color: var(--text-secondary);
     font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+    .file-preview-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 textarea {

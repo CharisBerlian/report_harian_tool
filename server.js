@@ -14,6 +14,7 @@ const port = process.env.PORT || 3000;
 const publicDir = path.join(__dirname, 'public');
 
 const MAX_UPLOAD_SIZE_BYTES = 4 * 1024 * 1024;
+const MAX_FILE_COUNT = 6;
 
 // Keep uploads in memory, then write them to the runtime temp directory only when needed.
 const upload = multer({
@@ -72,30 +73,39 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-app.post('/generate-report', upload.single('material'), async (req, res) => {
-    let tempFilePath = null;
-    let uploadedFileResponse = null;
+app.post('/generate-report', upload.array('material', MAX_FILE_COUNT), async (req, res) => {
+    const tempFilePaths = [];
+    const uploadedFileResponses = [];
 
     try {
-        const { genAI, fileManager } = getGeminiClients();
-        const file = req.file;
+        const files = req.files || [];
         const textInput = req.body.textInput;
 
         let promptContent = [SYSTEM_PROMPT];
 
-        if (!file && (!textInput || textInput.trim() === '')) {
+        if (files.length === 0 && (!textInput || textInput.trim() === '')) {
             return res.status(400).json({ error: 'Please provide either a lesson file or text material.' });
         }
 
-        if (file) {
-            tempFilePath = createTempUploadPath(file.originalname);
+        const totalUploadBytes = files.reduce((total, file) => total + file.size, 0);
+        if (totalUploadBytes > MAX_UPLOAD_SIZE_BYTES) {
+            return res.status(413).json({
+                error: 'Total ukuran file terlalu besar. Ukuran maksimum gabungan upload adalah sekitar 4 MB di Vercel Hobby.'
+            });
+        }
+
+        const { genAI, fileManager } = getGeminiClients();
+
+        for (const file of files) {
+            const tempFilePath = createTempUploadPath(file.originalname);
+            tempFilePaths.push(tempFilePath);
             fs.writeFileSync(tempFilePath, file.buffer);
 
-            // Upload the file to Gemini
-            uploadedFileResponse = await fileManager.uploadFile(tempFilePath, {
+            const uploadedFileResponse = await fileManager.uploadFile(tempFilePath, {
                 mimeType: file.mimetype || 'application/octet-stream',
                 displayName: file.originalname,
             });
+            uploadedFileResponses.push(uploadedFileResponse);
 
             promptContent.push({
                 fileData: {
@@ -123,11 +133,13 @@ app.post('/generate-report', upload.single('material'), async (req, res) => {
         console.error('Error generating report:', error);
         res.status(500).json({ error: error.message || 'Failed to generate report.' });
     } finally {
-        if (tempFilePath && fs.existsSync(tempFilePath)) {
-            fs.unlinkSync(tempFilePath);
+        for (const tempFilePath of tempFilePaths) {
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlinkSync(tempFilePath);
+            }
         }
 
-        if (uploadedFileResponse) {
+        for (const uploadedFileResponse of uploadedFileResponses) {
             try {
                 const { fileManager } = getGeminiClients();
                 await fileManager.deleteFile(uploadedFileResponse.file.name);
@@ -141,7 +153,13 @@ app.post('/generate-report', upload.single('material'), async (req, res) => {
 app.use((error, req, res, next) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
         return res.status(413).json({
-            error: 'File terlalu besar. Ukuran maksimum upload di Vercel Hobby adalah sekitar 4 MB per request.'
+            error: 'Salah satu file terlalu besar. Gunakan file yang lebih kecil lalu coba lagi.'
+        });
+    }
+
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_UNEXPECTED_FILE') {
+        return res.status(413).json({
+            error: `Terlalu banyak file. Maksimal ${MAX_FILE_COUNT} file per laporan.`
         });
     }
 
