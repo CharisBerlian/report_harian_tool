@@ -4,10 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const filePreview = document.getElementById('file-preview');
     const fileNameDisplay = document.getElementById('file-name');
     const removeFileBtn = document.getElementById('remove-file');
+    const pasteClipboardBtn = document.getElementById('paste-clipboard-btn');
 
     const form = document.getElementById('report-form');
     const generateBtn = document.getElementById('generate-btn');
-    const btnText = document.querySelector('.btn-text');
+    const btnText = generateBtn.querySelector('.btn-text');
     const loader = document.querySelector('.loader');
 
     const resultContainer = document.getElementById('result-container');
@@ -16,6 +17,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const errorMsg = document.getElementById('error-message');
 
     let currentFile = null;
+    const clipboardMimeMap = {
+        'application/pdf': '.pdf',
+        'image/png': '.png',
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+        'image/webp': '.webp',
+        'image/gif': '.gif',
+        'image/bmp': '.bmp'
+    };
 
     // --- Drag and Drop Logic ---
     dropZone.addEventListener('click', () => fileInput.click());
@@ -44,11 +54,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    document.addEventListener('paste', async (e) => {
+        const clipboardFile = getPastedClipboardFile(e);
+        if (!clipboardFile) {
+            return;
+        }
+
+        e.preventDefault();
+        hideError();
+        handleFile(clipboardFile);
+    });
+
+    pasteClipboardBtn.addEventListener('click', async () => {
+        hideError();
+
+        try {
+            const clipboardFile = await readClipboardFile();
+            handleFile(clipboardFile);
+        } catch (error) {
+            showError(error.message);
+        }
+    });
+
     function handleFile(file) {
         currentFile = file;
         fileNameDisplay.textContent = file.name;
         dropZone.classList.add('hidden');
         filePreview.classList.remove('hidden');
+    }
+
+    function getPastedClipboardFile(event) {
+        const items = Array.from(event.clipboardData?.items || []);
+        const fileItem = items.find((item) => item.kind === 'file' && isClipboardSupportedType(item.type));
+
+        if (!fileItem) {
+            return null;
+        }
+
+        const file = fileItem.getAsFile();
+        return file ? normalizeClipboardFile(file) : null;
+    }
+
+    async function readClipboardFile() {
+        if (!navigator.clipboard?.read) {
+            throw new Error('Browser ini belum mendukung baca file dari clipboard. Gunakan Ctrl+V di area halaman ini.');
+        }
+
+        const clipboardItems = await navigator.clipboard.read();
+
+        for (const item of clipboardItems) {
+            const supportedType = item.types.find((type) => isClipboardSupportedType(type));
+            if (!supportedType) {
+                continue;
+            }
+
+            const blob = await item.getType(supportedType);
+            return normalizeClipboardFile(blob);
+        }
+
+        throw new Error('Clipboard tidak berisi gambar atau PDF.');
+    }
+
+    function isClipboardSupportedType(type) {
+        return Boolean(clipboardMimeMap[type]);
+    }
+
+    function normalizeClipboardFile(blobOrFile) {
+        const mimeType = blobOrFile.type || 'application/octet-stream';
+        const existingName = typeof blobOrFile.name === 'string' ? blobOrFile.name.trim() : '';
+        const extension = clipboardMimeMap[mimeType] || '';
+        const fallbackName = `clipboard-${Date.now()}${extension}`;
+
+        return new File([blobOrFile], existingName || fallbackName, {
+            type: mimeType,
+            lastModified: Date.now()
+        });
     }
 
     removeFileBtn.addEventListener('click', () => {

@@ -65,3 +65,34 @@ Sekarang kamu bisa mulai melakukan _drag and drop_ file materi kamu untuk membua
 - **Backend:** Node.js, Express, Multer (File Handling)
 - **AI Engine:** `@google/generative-ai` & `@google/generative-ai/server`
 - **Frontend:** HTML5, CSS3, Vanilla JavaScript, Marked.js (Markdown Parser)
+
+---
+
+## ▲ Deploy ke Vercel Hobby
+
+Project ini sekarang kompatibel untuk deploy di Vercel Hobby dengan Express zero-config.
+
+### 1. Siapkan environment variable
+Tambahkan `GEMINI_API_KEY` di Vercel pada:
+`Project Settings -> Environment Variables`
+
+### 2. Deploy dari folder project
+Jika belum pernah login:
+```bash
+npx vercel login
+```
+
+Deploy preview:
+```bash
+npx vercel
+```
+
+Deploy production:
+```bash
+npx vercel --prod
+```
+
+### 3. Catatan penting
+- File statis di `public/` akan otomatis dilayani oleh Vercel.
+- Upload file diproses sementara di directory temp runtime, jadi tidak bergantung pada folder `uploads/`.
+- Karena limit request body Vercel Function, ukuran file upload aman dibatasi sekitar **4 MB** per request pada deployment Hobby.
